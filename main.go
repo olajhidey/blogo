@@ -62,7 +62,7 @@ type Tag struct {
 // another function to generate presigned url from S3
 
 func loadDb() *sql.DB {
-	dsn := "blogo:blogo@/blogo"
+	dsn := "<username>:<password>@/<dbname>"
 	db, err := sql.Open("mysql", dsn)
 
 	if err != nil {
@@ -437,10 +437,10 @@ func main() {
 	router := gin.Default()
 
 	config := &firebase.Config{
-		StorageBucket: "firestoreapp-87f7f.appspot.com",
+		StorageBucket: "<bucket-name>",
 	}
 
-	opt := option.WithCredentialsFile("./credentials.json")
+	opt := option.WithCredentialsFile("/path/to/servicekey.json")
 
 	app, err := firebase.NewApp(context.Background(), config, opt)
 
