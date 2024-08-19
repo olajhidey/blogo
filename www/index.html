@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simple Blog</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+      input,
+      textarea {
+        width: 100%;
+        margin-bottom: 10px;
+        padding: 8px;
+      }
+      button {
+        padding: 10px 15px;
+        cursor: pointer;
+      }
+      .blog-item {
+        border: 1px solid #ccc;
+        padding: 15px;
+        margin-bottom: 10px;
+      }
+      .blog-item img {
+        max-width: 100%;
+        height: auto;
+      }
+      select {
+        width: 100%;
+        padding: 8px;
+        margin-top: 5px;
+        margin-bottom: 15px;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+      }
+
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        align-items: center;
+        justify-content: center;
+      }
+      .modal.active {
+        display: flex;
+      }
+      .modal-content {
+        background: #fff;
+        padding: 20px;
+        border-radius: 5px;
+        width: 300px;
+      }
+      .modal-content input {
+        width: 100%;
+        margin-bottom: 10px;
+        padding: 8px;
+      }
+      .modal-content button {
+        padding: 10px 15px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <h1>Simple Blog</h1>
+
+      <!-- Navigation -->
+      <nav>
+        <button @click="view = 'list'">View Blogs</button>
+        <button @click="view = 'create'">Create Blog</button>
+      </nav>
+
+      <!-- Blog List View -->
+      <div v-if="view === 'list'">
+        <h2>All Blogs</h2>
+        <div v-for="(blog, index) in blogs" :key="index" class="blog-item">
+          <img
+            v-if="blog.blog_image"
+            style="height: 300px"
+            :src="blog.blog_image"
+            alt="Blog Image"
+          />
+          <h3>{{ blog.title }}</h3>
+          <p>{{ blog.description }}</p>
+          <p><strong>Category:</strong> {{ getTag(blog.tag_id) }}</p>
+          <p>{{ blog.content }}</p>
+          <button @click="editBlog(index)">Edit</button>
+          <button @click="deleteBlog(index, blog.id)">Delete</button>
+        </div>
+      </div>
+
+      <!-- Create Blog View -->
+      <div v-if="view === 'create'">
+        <h2>Create a New Blog</h2>
+        <form @submit.prevent="submitBlog">
+          <div>
+            <label for="title">Title:</label>
+            <input type="text" v-model="blogForm.title" id="title" required />
+          </div>
+          <div>
+            <label for="description">Description:</label>
+            <textarea
+              v-model="blogForm.description"
+              id="description"
+              required
+            ></textarea>
+          </div>
+          <div>
+            <label for="image">Blog Image:</label>
+            <input type="file" @change="handleImageUpload" id="image" />
+          </div>
+          <div>
+            <label for="tag">Tag:</label>
+            <select v-model="blogForm.tag" id="tag">
+              <option v-for="tag in tags" :value="tag.id">
+                {{ tag.name }}
+              </option>
+            </select>
+            <button type="button" @click="openTagModal">Add New Tag</button>
+          </div>
+          <div>
+            <label for="content">Content:</label>
+            <textarea
+              v-model="blogForm.content"
+              id="content"
+              required
+            ></textarea>
+          </div>
+          <button type="submit">Submit</button>
+        </form>
+      </div>
+
+      <!-- Edit Blog View -->
+      <div v-if="view === 'edit'">
+        <h2>Edit Blog</h2>
+        <form @submit.prevent="updateBlog">
+          <div>
+            <label for="title">Title:</label>
+            <input type="text" v-model="blogForm.title" id="title" required />
+          </div>
+          <div>
+            <label for="description">Description:</label>
+            <textarea
+              v-model="blogForm.description"
+              id="description"
+              required
+            ></textarea>
+          </div>
+          <div>
+            <label for="image">Blog Image:</label>
+            <input type="file" @change="handleImageUpload" id="image" />
+          </div>
+          <div>
+            <label for="tag">Tag:</label>
+            <!-- <input type="text" v-model="blogForm.tag" id="tag" required> -->
+            <select v-model="blogForm.tag_id" id="tag">
+              <option v-for="tag in tags" :value="tag.id">
+                {{ tag.name }}
+              </option>
+            </select>
+            <button type="button" @click="openTagModal">Add New Tag</button>
+          </div>
+          <div>
+            <label for="content">Content:</label>
+            <textarea
+              v-model="blogForm.content"
+              id="content"
+              required
+            ></textarea>
+          </div>
+          <button type="submit">Update</button>
+        </form>
+      </div>
+
+      <!-- Tag Modal -->
+      <div :class="{modal: true, active: showTagModal}">
+        <div class="modal-content">
+          <h3>Add New Tag</h3>
+          <input
+            type="text"
+            v-model="newTag"
+            placeholder="Enter new tag name"
+          />
+          <button @click="addTag">Add Tag</button>
+          <button @click="closeTagModal">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      new Vue({
+        el: "#app",
+        data: {
+          view: "list", // Current view ('list', 'create', 'edit')
+          tags: [],
+          blogs: [],
+          blogForm: {
+            title: "",
+            description: "",
+            tag: "",
+            content: "",
+            imageUrl: "",
+          },
+          editIndex: null, // Index of the blog being edited
+          showTagModal: false, // Boolean to control modal visibility
+          newTag: "",
+          selectedFile: null,
+        },
+        mounted() {
+          this.getTags();
+          setTimeout(() => {
+            this.getBlogs();
+          }, 3);
+        },
+        methods: {
+          handleImageUpload(event) {
+            this.selectedFile = event.target.files[0];
+          },
+          async getBlogs() {
+            const url = "/api/blogs";
+            try {
+              const request = await fetch(url);
+              if (!request.ok) {
+                throw new Error(`Response status: ${request.status}`);
+              }
+
+              this.blogs = await request.json();
+              console.log(this.blogs);
+            } catch (error) {
+              console.error(error.message);
+            }
+          },
+
+          async getTags() {
+            const url = "/api/tags";
+            try {
+              const response = await fetch(url);
+              if (!response.ok) {
+                throw new Error(`Response status: ${response.status}`);
+              }
+
+              this.tags = await response.json();
+            } catch (error) {
+              console.error(error.message);
+            }
+          },
+
+          async submitBlog() {
+            if (this.selectedFile != null) {
+              const formData = new FormData();
+              formData.append("file", this.selectedFile);
+
+              const imageRequest = await fetch("/upload", {
+                method: "POST",
+                body: formData,
+              });
+
+              const imageResponse = await imageRequest.json();
+
+              this.blogForm.imageUrl = imageResponse.url;
+            }
+            // Start uploading information to the database
+
+            console.log(this.blogForm);
+
+            const blogRequest = await fetch("/api/blog/create", {
+              method: "POST",
+              body: JSON.stringify({
+                title: this.blogForm.title,
+                description: this.blogForm.description,
+                blog_image: this.blogForm.imageUrl,
+                content: this.blogForm.content,
+                tag_id: this.blogForm.tag,
+              }),
+            });
+
+            if (!blogRequest.ok) {
+              console.error("Something went wrong: ", blogRequest);
+            }
+
+            const blogResponse = await blogRequest.json();
+
+            console.log(blogResponse);
+
+            this.blogs.push(blogResponse);
+
+            this.resetForm();
+            this.view = "list";
+          },
+          editBlog(index) {
+            this.blogForm = { ...this.blogs[index] };
+            console.log(this.blogForm);
+            this.editIndex = index;
+            this.view = "edit";
+          },
+          async updateBlog() {
+            if (this.editIndex !== null) {
+              if (this.selectedFile != null) {
+                const formData = new FormData();
+                formData.append("file", this.selectedFile);
+
+                const imageRequest = await fetch("/upload", {
+                  method: "POST",
+                  body: formData,
+                });
+
+                const imageResponse = await imageRequest.json();
+
+                this.blogForm.blog_image = imageResponse.url;
+              }
+              // Start uploading information to the database
+
+              console.log(this.blogForm);
+
+              const blogRequest = await fetch(
+                "/api/blog/update/" + this.blogForm.id,
+                {
+                  method: "PUT",
+                  body: JSON.stringify({
+                    title: this.blogForm.title,
+                    description: this.blogForm.description,
+                    blog_image: this.blogForm.blog_image,
+                    content: this.blogForm.content,
+                    tag_id: this.blogForm.tag_id,
+                  }),
+                }
+              );
+
+              if (!blogRequest.ok) {
+                console.error("Something went wrong: ", blogRequest);
+              }
+
+              const blogResponse = await blogRequest.json();
+
+              console.log(blogResponse);
+              Vue.set(this.blogs, this.editIndex, { ...this.blogForm });
+              this.resetForm();
+              this.view = "list";
+              this.editIndex = null;
+            }
+          },
+          resetForm() {
+            this.blogForm = {
+              title: "",
+              description: "",
+              image: null,
+              tag: "",
+              content: "",
+              imageUrl: "",
+            };
+            this.selectedFile = null
+          },
+          openTagModal() {
+            this.showTagModal = true;
+          },
+          closeTagModal() {
+            this.showTagModal = false;
+          },
+          async deleteBlog(index, id) {
+            this.blogs.splice(index, 1);
+
+            const url = "/api/blog/delete/" + id;
+            const deleteRequest = await fetch(url, {
+              method: "DELETE",
+            });
+
+            if (!deleteRequest.ok) {
+              throw new Error(`Response status: ${deleteRequest.status}`);
+            }
+
+            const deleteResponse = await deleteRequest.json();
+            console.log(deleteResponse);
+          },
+          getTag(id) {
+            const tag = this.tags.filter((tag) => {
+              if (id === tag.id) {
+                return tag;
+              }
+            });
+            return tag[0].name;
+          },
+          async addTag() {
+            if (this.newTag) {
+              const response = await fetch("/api/tag/create", {
+                method: "POST",
+                body: JSON.stringify({ name: this.newTag }),
+              });
+
+              const data = await response.json();
+
+              this.tags.push(data);
+
+              this.closeTagModal();
+            }
+          },
+        },
+      });
+    </script>
+  </body>
+</html>
