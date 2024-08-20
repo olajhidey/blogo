@@ -9,11 +9,13 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 
 	firebase "firebase.google.com/go/v4"
 	"github.com/gin-gonic/gin"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/joho/godotenv"
 	"google.golang.org/api/option"
 )
 
@@ -62,7 +64,13 @@ type Tag struct {
 // another function to generate presigned url from S3
 
 func loadDb() *sql.DB {
-	dsn := "<username>:<password>@/<dbname>"
+
+	dbUser := os.Getenv("DB_USER")
+	dbPassword := os.Getenv("DB_PASSWORD")
+	dbName := os.Getenv("DB_NAME")
+
+	// dsn := "blogo:blogo@/blogo"
+	dsn := fmt.Sprintf("%s:%s@/%s", dbUser, dbPassword, dbName)
 	db, err := sql.Open("mysql", dsn)
 
 	if err != nil {
@@ -434,13 +442,19 @@ func GetTag(ctx *gin.Context){
 
 func main() {
 
+	err := godotenv.Load()
+
+	if err != nil {
+		log.Fatalf("Error loading .env file")
+	}
+
 	router := gin.Default()
 
 	config := &firebase.Config{
-		StorageBucket: "<bucket-name>",
+		StorageBucket: os.Getenv("BUCKET_NAME"),
 	}
 
-	opt := option.WithCredentialsFile("/path/to/servicekey.json")
+	opt := option.WithCredentialsFile("/path/to/firebase/credentials")
 
 	app, err := firebase.NewApp(context.Background(), config, opt)
 
